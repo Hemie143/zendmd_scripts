@@ -1,0 +1,9 @@
+*.pyc
+*.pyo
+*.tsv
+*.xlsx
+build/
+setuptools*
+*.egg-info/
+*EGG-INFO*
+.idea/
