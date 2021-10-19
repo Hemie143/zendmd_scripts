@@ -100,6 +100,9 @@ def report_templates(zenpacks_data, templates_data):
             # print(zp_data)
             row_zp = [zp_id, zp_data['license'], zp_data['author'], zp_data['version'],
                       str(zp_data['egg'])]
+            if zp_data['templates'] == []:
+                output.write('\t'.join(row_zp))
+                output.write('\n')
             for zt in sorted(zp_data['templates'], key=lambda i: i['id']):
                 # print(zt)
                 row = []
@@ -123,6 +126,7 @@ def report_templates(zenpacks_data, templates_data):
                 output.write('\n')
 
         # output templates not in zenpacks
+        # TODO: Check whether templates has a parent template in a ZenPack
         for t_uid, t_data in sorted(templates_data.items()):
             if t_data['in_zenpack']:
                 continue
@@ -134,6 +138,7 @@ def report_templates(zenpacks_data, templates_data):
             output.write('\n')
     return
 
+# TODO: use generators to reduce memory footprint
 
 if __name__ == '__main__':
     zenpacks_data = scan_zenpacks()
