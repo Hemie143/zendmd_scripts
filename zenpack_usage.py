@@ -1,12 +1,5 @@
 #! /opt/zenoss/bin/python
 
-###########################
-#   ZEP Facade Example    #
-###########################
-# Created by: Ryan Matte  #
-# Updated by: Shane Scott #
-###########################
-
 # import the stuff that zendmd needs and create the dmd context
 import Globals
 from Products.ZenUtils.ZenScriptBase import ZenScriptBase
@@ -79,6 +72,7 @@ def scan_templates():
                           'creation_time': t._created_timestamp,
                           'device': device.id,
                           'in_zenpack': False,
+                          'zenpack': '',
                          }
 
     data = dict()
@@ -90,11 +84,22 @@ def scan_templates():
             parse_templates(d, c)
     return data
 
+
+def get_parent_template(uid, template_uids):
+    path = uid.split('/')
+    template_name = path[-1]
+    for i in range(len(path) - 3, 3, -1):
+        parent_uid = '{}/rrdTemplates/{}'.format('/'.join(path[0:i]), template_name)
+        if parent_uid in template_uids:
+            return parent_uid
+    return 'nihil'
+
+
 def report_templates(zenpacks_data, templates_data):
     with open('zenpack_usage.tsv', 'w') as output:
         output.write('\t'.join(['ZenPack', 'License', 'Author', 'Version', 'Egg', 'Template', 'Template UID',
-                                'Python Class(ZP)', 'Creation Time(ZP)', 'ZenPack(T)', 'Python Class(T)', 'Device',
-                                'Creation Time(ZP)\n']))
+                                'Parent Template UID', 'Parent ZenPack', 'Python Class(ZP)', 'Creation Time(ZP)',
+                                'ZenPack(T)', 'Python Class(T)', 'Device', 'Creation Time(ZP)\n']))
         for zp_id, zp_data in sorted(zenpacks_data.items()):
             print(zp_id)
             # print(zp_data)
@@ -108,7 +113,8 @@ def report_templates(zenpacks_data, templates_data):
                 row = []
                 row.extend(row_zp)
                 creation_time = datetime.datetime.fromtimestamp(zt['creation_time']).strftime('%d/%m/%Y %H:%M')
-                row.extend([zt['id'], zt['primaryId'], zt['targetPythonClass'], creation_time])
+                zt_uid = zt['primaryId']
+                row.extend([zt['id'], zt_uid])
                 if zt['primaryId'] in templates_data:
                     '''
                     '/zport/dmd/Devices/ControlCenter/devices/st-monlogcol-s01.staging.credoc.be/CC-Service-zenhubiworker': 
@@ -117,10 +123,29 @@ def report_templates(zenpacks_data, templates_data):
                     'device': 'st-monlogcol-s01.staging.credoc.be', 'id': 'CC-Service-zenhubiworker'}
                     '''
                     t_data = templates_data[zt['primaryId']]
+                    if 'rrdTemplates' in zt_uid:
+                        row.extend(['', ''])
+                    else:
+                        parent_template = get_parent_template(zt_uid, templates_data.keys())
+                        parent_zenpack = templates_data[parent_template]['zenpack']
+                        row.extend([parent_template, parent_zenpack])
+
+                    row.extend([zt['targetPythonClass'], creation_time])
                     creation_time = datetime.datetime.fromtimestamp(t_data['creation_time']).strftime('%d/%m/%Y %H:%M')
                     row.extend([t_data['zenpack'], t_data['targetPythonClass'], t_data['device'], creation_time])
-                    templates_data[zt['primaryId']]['in_zenpack'] = True
+
+                    if not templates_data[zt['primaryId']]['in_zenpack']:
+                        templates_data[zt['primaryId']]['in_zenpack'] = True
+                        templates_data[zt['primaryId']]['zenpack'] = zp_id
+                    else:
+                        print('Dupe entries !')
+                        print('Template: {}'.format(zt['primaryId']))
+                        print('Current ZP: {}'.format(zp_id))
+                        print('Previous ZP: {}'.format(templates_data[zt['primaryId']]['zenpack']))
+                        exit()
+
                 else:
+                    row.extend([zt['targetPythonClass'], creation_time])
                     row.extend(['', '', '', ''])
                 output.write('\t'.join(row))
                 output.write('\n')
@@ -130,9 +155,20 @@ def report_templates(zenpacks_data, templates_data):
         for t_uid, t_data in sorted(templates_data.items()):
             if t_data['in_zenpack']:
                 continue
+
+            if 'rrdTemplates' in t_uid:
+                parent_template = 'nihil'
+                parent_zenpack = 'nihil'
+            else:
+                parent_template = get_parent_template(t_uid, templates_data.keys())
+                if parent_template in templates_data:
+                    parent_zenpack = templates_data[parent_template]['zenpack']
+                else:
+                    parent_zenpack = 'nihil'
+
             creation_time = datetime.datetime.fromtimestamp(t_data['creation_time']).strftime('%d/%m/%Y %H:%M')
-            row = ['', '', '', '', '', t_data['id'], t_uid, '', '', t_data['zenpack'], t_data['targetPythonClass'],
-                   t_data['device'], creation_time]
+            row = ['', '', '', '', '', t_data['id'], t_uid, parent_template, parent_zenpack, '', '', t_data['zenpack'],
+                   t_data['targetPythonClass'], t_data['device'], creation_time]
             # print(row)
             output.write('\t'.join(row))
             output.write('\n')
